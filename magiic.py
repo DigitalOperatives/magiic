@@ -1,5 +1,40 @@
 #!/usr/bin/env python
 
+## Magiic Allows for GPG Indexing of IMAP on the Command-line (MAGIIC)
+##
+##     Version:	1.0
+##        Date:	2013-07-12
+##      Author:	Evan A. Sultanik, Ph.D.
+##   Copyright:	2013, Digital Operatives, LLC
+##
+## This software is licensed under a version of the Creative Commons
+## BY-NC-SA 3.0 license modified to be more applicable for software
+## licensing.  In general:
+## 
+##   * you are permitted to modify the software in any way;
+##
+##   * you are permitted to redistribute the software as long as you
+##     retain the same license and attributions; and
+##
+##   * you can use the software in any non-commercial way.
+##
+## For specific details on the license, please see the LICENSE file
+## included with this software.
+## 
+## For information on commercial licensing, please contact
+## info _ at _ digitaloperatives.com
+##
+## THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+## ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+## WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+## DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+## ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+## (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+## LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+## ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+## (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+## SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 import sys
 import re
 import os.path
@@ -48,32 +83,16 @@ def get_charset(message, default="ascii"):
     return default
 
 def get_body(message):
-    """Get the body of the email message"""
-
     if message.is_multipart():
-        #get the plain text version only
-        text_parts = [part
-                      for part in typed_subpart_iterator(message,
-                                                         'text',
-                                                         'plain')]
-        text_parts += [part
-                      for part in typed_subpart_iterator(message,
-                                                         'application',
-                                                         'pgp-encrypted')]
+        text_parts = [part for part in typed_subpart_iterator(message, 'text', 'plain')]
+        text_parts += [part for part in typed_subpart_iterator(message, 'application', 'pgp-encrypted')]
         body = []
         for part in text_parts:
             charset = get_charset(part, get_charset(message))
-            body.append(unicode(part.get_payload(decode=True),
-                                charset,
-                                "replace"))
-
+            body.append(unicode(part.get_payload(decode=True), charset, "replace"))
         return u"\n".join(body).strip()
-
-    else: # if it is not multipart, the payload will be a string
-          # representing the message body
-        body = unicode(message.get_payload(decode=True),
-                       get_charset(message),
-                       "replace")
+    else:
+        body = unicode(message.get_payload(decode=True), get_charset(message), "replace")
         return body.strip()
 
 class Index:
