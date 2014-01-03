@@ -96,9 +96,14 @@ def get_body(message):
         return body.strip()
 
 class Index:
-    def __init__(self, gpg_user, index_dir = None):
+    def __init__(self, gpg_user, index_dir = None, index_suffix = "INBOX"):
         if index_dir == None:
-            index_dir = os.path.join(os.path.expanduser("~"), ".magiic")
+            suffix = index_suffix
+            if suffix is None or suffix == "INBOX":
+                suffix = ""
+            else:
+                suffix = "-" + suffix
+            index_dir = os.path.join(os.path.expanduser("~"), ".magiic" + suffix)
         self.index_dir = index_dir
         self.gpg = gnupg.GPG()
         self.gpg_user = gpg_user
@@ -315,9 +320,11 @@ if __name__ == "__main__":
     else:
         argparser.add_argument('--server', '-s', type=str, help="IMAP server address", required=True)
 
+    argparser.add_argument('--mailbox', '-m', type=str, help="The mailbox to index and/or search from (default is INBOX)", required=False, default="INBOX")
+
     args = argparser.parse_args()
 
-    with Index(args.email) as index:
+    with Index(args.email, index_suffix=args.mailbox) as index:
         if len(args.QUERY) > 0:
             results = [email for query in args.QUERY for email in index.query(query)]
             if len(results) == 0:
@@ -332,7 +339,7 @@ if __name__ == "__main__":
         imap = imaplib.IMAP4_SSL(args.server)
         imap.login(args.user, getpass.getpass("IMAP Password for " + args.user + ": "))
         try:
-            imap.select('INBOX', True)
+            imap.select(args.mailbox, True)
             typ, data = imap.search(None, 'ALL')
             emails = data[0].split()
             d = str(len(str(len(emails))))
