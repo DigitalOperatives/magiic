@@ -321,6 +321,7 @@ if __name__ == "__main__":
         argparser.add_argument('--server', '-s', type=str, help="IMAP server address", required=True)
 
     argparser.add_argument('--mailbox', '-m', type=str, help="The mailbox to index and/or search from (default is INBOX)", required=False, default="INBOX")
+    argparser.add_argument('--full', '-f', action='store_true', help="Perform a full import.  Without this option, the import stops when it reaches a message that it has already indexed.")
 
     args = argparser.parse_args()
 
@@ -342,6 +343,8 @@ if __name__ == "__main__":
             imap.select(args.mailbox, True)
             typ, data = imap.search(None, 'ALL')
             emails = data[0].split()
+            if not args.full:
+                emails = list(reversed(emails))
             d = str(len(str(len(emails))))
             f = "\r" + " "*100 + "\r%" + d + "d/%" + d + "d %8s %s"
             updated = False
@@ -364,6 +367,11 @@ if __name__ == "__main__":
                             writer.cancel()
                             sys.stderr.write("\r" + " "*100 + "\rError decrypting E-Mail:\n\t" + str(msg['Message-ID']) + " (IMAP ID: " + str(num) + ")\n\tFrom: " + str(msg['From']) + "\n\tDate: " + str(msg['date']) + "\n\tSubject: " + str(msg['Subject']))
                             sys.stderr.flush()
+                    elif not args.full:
+                        # We reached a message that we have seen before, and we aren't doing a full import, so we are done!
+                        sys.stderr.write(f % (i+1, len(emails), "Finished quick import!", msg['Message-ID']))
+                        sys.stderr.flush()
+                        break
                     else:
                         sys.stderr.write(f % (i+1, len(emails), "Skipping", msg['Message-ID']))
                         sys.stderr.flush()
