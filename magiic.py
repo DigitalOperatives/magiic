@@ -217,7 +217,7 @@ class Monitor:
                 for q in self.queries:
                     for m in re.finditer(q, line, re.IGNORECASE):
                         try:
-                            self.screen.addstr(i, m.start(), q, curses.A_BOLD)
+                            self.screen.addstr(i, m.start(), q, curses.A_BOLD|curses.color_pair(self.A_RED_FG))
                         except Exception:
                             pass
         else:
@@ -225,8 +225,15 @@ class Monitor:
                 date = ""
                 d = self.results[i+self.offset][1]
                 if d:
-                    date = d.strftime("%h %d, %Y")
-                s = "%-12s %-20s %s" % (date, self.get_name(self.results[i+self.offset][0]), self.results[i+self.offset][2])
+                    date = d.strftime("%F %T")
+                date_width = 19
+                name_width = 25
+                screen_width = self.screen.getmaxyx()[1]
+                subject_width = screen_width - date_width - name_width - 4
+                dws = str(date_width)
+                nws = str(name_width)
+                sws = str(subject_width)
+                s = ("%-"+dws+"s  %-"+nws+"."+nws+"s  %-"+sws+"."+sws+"s") % (date, self.get_name(self.results[i+self.offset][0]), self.results[i+self.offset][2])
                 if i == self.idx:
                     self.screen.addstr(i,0,s,curses.A_STANDOUT)
                 else:
@@ -235,6 +242,9 @@ class Monitor:
 
     def main(self):
         curses.use_default_colors()
+        curses.start_color()
+        self.A_RED_FG = 1
+        curses.init_pair(self.A_RED_FG, curses.COLOR_RED, -1)
         self.redraw()
         while 1:
             key = self.screen.getch()
@@ -332,6 +342,7 @@ if __name__ == "__main__":
                 sys.stderr.write("No results.\n")
                 exit(0)
             import curses
+            import curses.ascii
             try:
                 curses.wrapper(show_results)
             except KeyboardInterrupt:
