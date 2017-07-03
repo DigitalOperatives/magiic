@@ -364,6 +364,7 @@ if __name__ == "__main__":
         imap = imaplib.IMAP4_SSL(args.server)
         imap.login(args.user, getpass.getpass("IMAP Password for " + args.user + ": "))
         try:
+            processed = 0
             imap.select(args.mailbox, True)
             typ, data = imap.search(None, 'ALL')
             emails = data[0].split()
@@ -372,21 +373,21 @@ if __name__ == "__main__":
             total_emails = len(emails)
             d = str(len(str(total_emails)))
             f = "\r" + " "*200 + "\r[.] %" + d + "d/%" + d + "d %8s %s"
-            updated = False
+            current_email = 1
             with index.searcher() as s:
                 for i, num in enumerate(emails):
                     typ, data = imap.fetch(num, '(BODY.PEEK[HEADER.FIELDS (Message-ID)])')
                     msg = email.message_from_string(data[0][1])
                     doc = index.get_by_id(msg['Message-ID'])
                     if doc == None:
-                        sys.stderr.write(f % (i+1, len(emails), "Adding", msg['Message-ID']))
+                        sys.stderr.write(f % (current_email, total_emails, "Adding", msg['Message-ID']))
                         sys.stderr.flush()
                         # Fetch the whole E-Mail
                         typ, data = imap.fetch(num, '(RFC822)')
                         msg = email.message_from_string(data[0][1])
                         writer = index.index.writer()
                         if index.add(msg, writer):
-                            updated = True
+                            processed += 1
                             writer.commit(merge = False)
                         else:
                             writer.cancel()
@@ -394,17 +395,18 @@ if __name__ == "__main__":
                             sys.stderr.flush()
                     elif not args.full:
                         # We reached a message that we have seen before, and we aren't doing a full import, so we are done!
-                        sys.stderr.write(f % (i+1, len(emails), "[+] Finished quick import!", msg['Message-ID']))
+                        sys.stderr.write(f % (current_email, total_emails, "[+] Finished quick import!", msg['Message-ID']))
                         sys.stderr.flush()
                         break
                     else:
-                        sys.stderr.write(f % (i+1, len(emails), "Skipping", msg['Message-ID']))
+                        sys.stderr.write(f % (current_email, total_emails, "Skipping", msg['Message-ID']))
                         sys.stderr.flush()
-                    if i % 100 == 0 and i > 0 and updated:
+                    current_email += 1
+
+                    if processed % 0x100 == 0 and processed > 0:
                         sys.stderr.write("\r" + " "*200 + "\r[+] Optimizing the index...")
                         sys.stderr.flush()
                         index.index.optimize()
-                        updated = False
         except KeyboardInterrupt:
             pass
         except Exception as e:
