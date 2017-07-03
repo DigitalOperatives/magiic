@@ -224,7 +224,7 @@ class Monitor:
                 for q in self.queries:
                     for m in re.finditer(q, line, re.IGNORECASE):
                         try:
-                            self.screen.addstr(i, m.start(), q, curses.A_BOLD|curses.color_pair(self.A_RED_FG))
+                            self.screen.addstr(i, m.start(), q, curses.A_BOLD|self.A_RED_FG)
                         except Exception:
                             pass
         else:
@@ -250,8 +250,8 @@ class Monitor:
     def main(self):
         curses.use_default_colors()
         curses.start_color()
-        self.A_RED_FG = 1
-        curses.init_pair(self.A_RED_FG, curses.COLOR_RED, -1)
+        curses.init_pair(1, curses.COLOR_RED, -1)
+        self.A_RED_FG = curses.color_pair(1)
         self.redraw()
         page_back_keys    = [curses.KEY_PPAGE, ord('b'), ord(curses.ascii.ctrl('b'))]
         page_forward_keys = [curses.KEY_NPAGE, ord('f'), ord(curses.ascii.ctrl('f')), curses.ascii.SP]
