@@ -89,7 +89,8 @@ def get_body(message):
         body = []
         for part in text_parts:
             charset = get_charset(part, get_charset(message))
-            body.append(unicode(part.get_payload(decode=True), charset, "replace"))
+            payload = part.get_payload(decode=True)
+            body.append(unicode(payload, charset, "replace"))
         return u"\n".join(body).strip()
     else:
         body = unicode(message.get_payload(decode=True), get_charset(message), "replace")
@@ -246,29 +247,35 @@ class Monitor:
         self.A_RED_FG = 1
         curses.init_pair(self.A_RED_FG, curses.COLOR_RED, -1)
         self.redraw()
+        page_back_keys    = [curses.KEY_PPAGE, ord('b'), ord(curses.ascii.ctrl('b'))]
+        page_forward_keys = [curses.KEY_NPAGE, ord('f'), ord(curses.ascii.ctrl('f')), curses.ascii.SP]
+        down_keys         = [curses.KEY_DOWN,  ord('j')]
+        up_keys           = [curses.KEY_UP,    ord('k')]
+        open_keys         = [curses.KEY_ENTER, curses.KEY_OPEN, ord(' '), ord('\n'), ord('\r'), ord('o')]
+        exit_keys         = [curses.ascii.ESC, curses.KEY_EXIT, ord('q'), ord('i')]
         while 1:
             key = self.screen.getch()
-            if key == 27 or key == ord('q') or key == curses.KEY_EXIT or (self.viewing and key == ord('i')):
+            if key in exit_keys:
                 if self.viewing:
                     self.viewing = None
                 else:
                     break
-            elif key == curses.KEY_PPAGE:
+            elif key in page_back_keys:
                 if self.viewing:
                     self.view_offset -= self.height
                 else:
                     self.idx -= self.height
-            elif key == curses.KEY_NPAGE or (self.viewing and key == ord(' ')):
+            elif key in page_forward_keys:
                 if self.viewing:
                     self.view_offset += self.height
                 else:
                     self.idx += self.height
-            elif key == curses.KEY_DOWN or key == ord('j'):
+            elif key in down_keys:
                 if self.viewing:
                     self.view_offset += 1
                 else:
                     self.idx += 1
-            elif key == curses.KEY_UP or key == ord('k'):
+            elif key in up_keys:
                 if self.viewing:
                     self.view_offset -= 1
                 else:
@@ -285,7 +292,7 @@ class Monitor:
                 self.view_offset = len(self.viewing) - self.height
             if self.view_offset < 0:
                 self.view_offset = 0
-            if key == curses.KEY_ENTER or key == curses.KEY_OPEN or key == ord(' ') or key == ord('\n') or key == ord('\r') or key == ord('o'):
+            if key in open_keys:
                 if not self.viewing:
                     self.viewing = self.results[self.idx][3].split("\n")
                     self.view_offset = 0
