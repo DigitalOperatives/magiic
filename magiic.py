@@ -121,12 +121,18 @@ class Index:
             self.index = open_dir(index_dir)
     def save(self):
         sys.stderr.write("\n[+] Re-Encrypting the Index...")
-        self.index.optimize()
-        for f in map(lambda x : os.path.join(self.index_dir, x), os.listdir(self.index_dir)):
-            if not f.endswith(".enc"):
-                with open(f, 'rb') as ef:
-                    self.gpg.encrypt_file(ef, recipients=[self.gpg_user], output=f + ".enc")
-        sys.stderr.write("\n")
+        try:
+            self.index.optimize()
+            for f in map(lambda x : os.path.join(self.index_dir, x), os.listdir(self.index_dir)):
+                if not f.endswith(".enc"):
+                    with open(f, 'rb') as ef:
+                        unencrypted_data = ef.read()
+                        self.gpg.encrypt(unencrypted_data, self.gpg_user, output=(f+".enc"))
+                    os.remove(f)
+            sys.stderr.write(" done\n")
+        except Exception as e:
+            sys.stdout.write("[!] Exception: "+str(e) + "\n")
+            sys.stdout.flush()
     def __enter__(self):
         return self
     def __exit__(self, type, value, traceback):
