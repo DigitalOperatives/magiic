@@ -120,7 +120,7 @@ class Index:
                         self.gpg.decrypt_file(ef, passphrase=self._passphrase, output=f[:-4])
             self.index = open_dir(index_dir)
     def save(self):
-        sys.stderr.write("\nRe-Encrypting the Index...")
+        sys.stderr.write("\n[+] Re-Encrypting the Index...")
         self.index.optimize()
         for f in map(lambda x : os.path.join(self.index_dir, x), os.listdir(self.index_dir)):
             if not f.endswith(".enc"):
@@ -346,7 +346,7 @@ if __name__ == "__main__":
         if len(args.QUERY) > 0:
             results = [email for query in args.QUERY for email in index.query(query)]
             if len(results) == 0:
-                sys.stderr.write("No results.\n")
+                sys.stderr.write("[!] No results.\n")
                 exit(0)
             import curses
             import curses.ascii
@@ -363,8 +363,9 @@ if __name__ == "__main__":
             emails = data[0].split()
             if not args.full:
                 emails = list(reversed(emails))
-            d = str(len(str(len(emails))))
-            f = "\r" + " "*100 + "\r%" + d + "d/%" + d + "d %8s %s"
+            total_emails = len(emails)
+            d = str(len(str(total_emails)))
+            f = "\r" + " "*200 + "\r[.] %" + d + "d/%" + d + "d %8s %s"
             updated = False
             with index.searcher() as s:
                 for i, num in enumerate(emails):
@@ -383,23 +384,26 @@ if __name__ == "__main__":
                             writer.commit(merge = False)
                         else:
                             writer.cancel()
-                            sys.stderr.write("\r" + " "*100 + "\rError decrypting E-Mail:\n\t" + str(msg['Message-ID']) + " (IMAP ID: " + str(num) + ")\n\tFrom: " + str(msg['From']) + "\n\tDate: " + str(msg['date']) + "\n\tSubject: " + str(msg['Subject']))
+                            sys.stderr.write("\r" + " "*200 + "\r[!] Error decrypting E-Mail:\n\t" + str(msg['Message-ID']) + "\n\tFrom: " + str(msg['From']) + "\n\tDate: " + str(msg['date']) + "\n\tSubject: " + str(msg['Subject']))
                             sys.stderr.flush()
                     elif not args.full:
                         # We reached a message that we have seen before, and we aren't doing a full import, so we are done!
-                        sys.stderr.write(f % (i+1, len(emails), "Finished quick import!", msg['Message-ID']))
+                        sys.stderr.write(f % (i+1, len(emails), "[+] Finished quick import!", msg['Message-ID']))
                         sys.stderr.flush()
                         break
                     else:
                         sys.stderr.write(f % (i+1, len(emails), "Skipping", msg['Message-ID']))
                         sys.stderr.flush()
                     if i % 100 == 0 and i > 0 and updated:
-                        sys.stderr.write("\r" + " "*100 + "\rOptimizing the index...")
+                        sys.stderr.write("\r" + " "*200 + "\r[+] Optimizing the index...")
                         sys.stderr.flush()
                         index.index.optimize()
                         updated = False
         except KeyboardInterrupt:
             pass
+        except Exception as e:
+            sys.stdout.write("[!] Exception: "+str(e) + "\n")
+            sys.stdout.flush()
         finally:
             index.save()
             imap.close()
