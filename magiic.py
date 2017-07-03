@@ -312,6 +312,7 @@ def show_results(stdscr):
     mon.main()
 
 if __name__ == "__main__":
+    # Preprocess .muttrc if it exists
     muttrc = os.path.join(os.path.expanduser("~"), ".muttrc")
     mutt_imap_user = None
     mutt_imap_server = None
@@ -329,24 +330,27 @@ if __name__ == "__main__":
                         mutt_gpg_email = m.group(1)
 
     argparser = argparse.ArgumentParser(description='Magiic Allows for GPG Indexing of IMAP on the Command-line.')
-    argparser.add_argument('QUERY', nargs='*', help='the string(s) to query.  If none are provided, Magiic will sync its index with the E-mails in your inbox.')
-    if mutt_imap_user:
-        argparser.add_argument('--user', '-u', type=str, default=mutt_imap_user, help="IMAP username", required=False)
-    else:
-        argparser.add_argument('--user', '-u', type=str, help="IMAP username", required=True)
-    if mutt_gpg_email:
-        argparser.add_argument('--email', '-e', type=str, default=mutt_gpg_email, help="E-Mail address associated with your GPG private key", required=False)
-    else:
-        argparser.add_argument('--email', '-e', type=str, help="E-Mail address associated with your GPG private key", required=True)
-    if mutt_imap_server:
-        argparser.add_argument('--server', '-s', type=str, default=mutt_imap_server, help="IMAP server hostname", required=False)
-    else:
-        argparser.add_argument('--server', '-s', type=str, help="IMAP server address", required=True)
+    argparser.add_argument('QUERY', nargs='*', help='the string(s) to query.  If none are provided, Magiic will sync its index with the E-mails in your inbox, provided it has the information necessary (user, email, server).')
+    argparser.add_argument('--user', '-u', type=str,
+        default=mutt_imap_user if mutt_imap_user else None,
+        help="IMAP username"+("" if mutt_imap_user is None else " (default: %s)" % mutt_imap_user),
+        required=False)
+    argparser.add_argument('--email', '-e', type=str,
+        default=mutt_gpg_email if mutt_gpg_email else None,
+        help="E-Mail address associated with your GPG private key"+("" if mutt_gpg_email is None else " (default: %s)" % mutt_gpg_email),
+        required=False)
+    argparser.add_argument('--server', '-s', type=str,
+        default=mutt_imap_server if mutt_imap_server else None,
+        help="IMAP server hostname"+("" if mutt_imap_server is None else " (default: %s)" % mutt_imap_server),
+        required=False)
 
     argparser.add_argument('--mailbox', '-m', type=str, help="The mailbox to index and/or search from (default is INBOX)", required=False, default="INBOX")
     argparser.add_argument('--full', '-f', action='store_true', help="Perform a full import.  Without this option, the import stops when it reaches a message that it has already indexed.")
 
     args = argparser.parse_args()
+    if len(args.QUERY) == 0 and (args.user is None or args.email is None or args.server is None):
+        argparser.print_help()
+        sys.exit(2)
 
     with Index(args.email, index_suffix=args.mailbox) as index:
         if len(args.QUERY) > 0:
