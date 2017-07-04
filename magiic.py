@@ -76,7 +76,7 @@ for module_name, vals in _imports.iteritems():
     _tryimport(module_name, import_command = import_command, module_url = module_url)
 
 # get secret keys
-gpg = gnupg.GPG()
+gpg = gnupg.GPG(homedir='~/.gnupg')
 secret_keys = gpg.list_keys(secret=True)
 gpg_secret_key_map = {}
 email_part_pattern = re.compile('.*<([^>]+)>')
@@ -367,15 +367,17 @@ if __name__ == "__main__":
     argparser.add_argument('--full', '-f', action='store_true', help="Perform a full import.  Without this option, the import stops when it reaches a message that it has already indexed.")
 
     args = argparser.parse_args()
+
+    # Enforce the two modes of operation: either query mode or indexing mode
     if len(args.QUERY) == 0 and (args.user is None or args.email is None or args.server is None):
         argparser.print_help()
         sys.exit(2)
 
+    # Ensure we will encrypt the index to something it is possible to decrypt
     if args.email not in gpg_secret_key_map:
         sys.stderr.write("[!] Unable to find private key for \"%s\", exiting.\n" % args.email)
         sys.stderr.flush()
         exit(1)
-
     gpg_user = gpg_secret_key_map[args.email]
 
     with Index(gpg_user, index_suffix=args.mailbox) as index:
