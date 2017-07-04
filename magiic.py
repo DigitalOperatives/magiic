@@ -45,6 +45,7 @@ from email.Iterators import typed_subpart_iterator
 import email.utils
 import argparse
 import datetime
+
 def _tryimport(module_name, import_command = None, module_url = None):
     if import_command == None:
         import_command = "import " + module_name
@@ -56,12 +57,15 @@ def _tryimport(module_name, import_command = None, module_url = None):
             sys.stderr.write("For instructions on doing so, please visit " + module_url + "\n")
         sys.stderr.write("\n")
         exit(1)
+
 _imports = {
     'gnupg' : {'url' : 'https://code.google.com/p/python-gnupg/'},
     'whoosh.index' : {'url' : 'https://pypi.python.org/pypi/Whoosh/', 'cmd' : 'from whoosh.index import create_in, open_dir'},
     'whoosh.fields' : {'url' : 'https://pypi.python.org/pypi/Whoosh/', 'cmd' : 'from whoosh.fields import *'},
     'whoosh.qparser' : {'url' : 'https://pypi.python.org/pypi/Whoosh/', 'cmd' : 'from whoosh.qparser import QueryParser, MultifieldParser'},    
 }
+
+# import modules dynamically
 for module_name, vals in _imports.iteritems():
     import_command = None
     if 'cmd' in vals:
@@ -70,6 +74,21 @@ for module_name, vals in _imports.iteritems():
     if 'url' in vals:
         module_url = vals['url']
     _tryimport(module_name, import_command = import_command, module_url = module_url)
+
+# get secret keys
+gpg = gnupg.GPG()
+secret_keys = gpg.list_keys(secret=True)
+gpg_secret_key_map = {}
+email_part_pattern = re.compile('.*<([^>]+)>')
+for key in secret_keys:
+    keyidstr = str(key['keyid'])
+    gpg_secret_key_map[key['keyid']] = keyidstr
+    gpg_secret_key_map[key['keyid'][-8:]] = keyidstr
+    gpg_secret_key_map[key['fingerprint'][-8:]] = keyidstr
+    for uid in key['uids']:
+        gpg_secret_key_map[uid] = keyidstr
+        if email_part_pattern.match(uid):
+            gpg_secret_key_map[email_part_pattern.match(uid).group(1)] = keyidstr
 
 def get_charset(message, default="ascii"):
     """Get the message charset"""
@@ -106,7 +125,7 @@ class Index:
                 suffix = "-" + suffix
             index_dir = os.path.join(os.path.expanduser("~"), ".magiic" + suffix)
         self.index_dir = index_dir
-        self.gpg = gnupg.GPG()
+        self.gpg = gpg
         self.gpg_user = gpg_user
         self._passphrase = getpass.getpass("GPG Password for " + gpg_user + ": ")
         if not os.path.exists(index_dir):
@@ -337,7 +356,7 @@ if __name__ == "__main__":
         required=False)
     argparser.add_argument('--email', '-e', type=str,
         default=mutt_gpg_email if mutt_gpg_email else None,
-        help="E-Mail address associated with your GPG private key"+("" if mutt_gpg_email is None else " (default: %s)" % mutt_gpg_email),
+        help="E-Mail address associated with your GPG private key, or the key ID itself"+("" if mutt_gpg_email is None else " (default: %s)" % mutt_gpg_email),
         required=False)
     argparser.add_argument('--server', '-s', type=str,
         default=mutt_imap_server if mutt_imap_server else None,
@@ -352,11 +371,19 @@ if __name__ == "__main__":
         argparser.print_help()
         sys.exit(2)
 
-    with Index(args.email, index_suffix=args.mailbox) as index:
+    if args.email not in gpg_secret_key_map:
+        sys.stderr.write("[!] Unable to find private key for \"%s\", exiting.\n" % args.email)
+        sys.stderr.flush()
+        exit(1)
+
+    gpg_user = gpg_secret_key_map[args.email]
+
+    with Index(gpg_user, index_suffix=args.mailbox) as index:
         if len(args.QUERY) > 0:
             results = [email for query in args.QUERY for email in index.query(query)]
             if len(results) == 0:
                 sys.stderr.write("[!] No results.\n")
+                sys.stderr.flush()
                 exit(0)
             import curses
             import curses.ascii
