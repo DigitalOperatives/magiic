@@ -52,9 +52,9 @@ def _tryimport(module_name, import_command = None, module_url = None):
     try:
         exec(import_command) in globals()
     except ImportError:
-        sys.stderr.write("Error loading module " + module_name + "!\nPlease make sure you have it installed.\n")
+        sys.stderr.write("[!] Error loading module " + module_name + "!\nPlease make sure you have it installed.\n")
         if module_url != None:
-            sys.stderr.write("For instructions on doing so, please visit " + module_url + "\n")
+            sys.stderr.write("[!] For instructions on doing so, please visit " + module_url + "\n")
         sys.stderr.write("\n")
         exit(1)
 
@@ -65,7 +65,7 @@ _imports = {
     'whoosh.qparser' : {'url' : 'https://pypi.python.org/pypi/Whoosh/', 'cmd' : 'from whoosh.qparser import QueryParser, MultifieldParser'},    
 }
 
-# import modules dynamically
+# Import modules dynamically
 for module_name, vals in _imports.iteritems():
     import_command = None
     if 'cmd' in vals:
@@ -75,7 +75,7 @@ for module_name, vals in _imports.iteritems():
         module_url = vals['url']
     _tryimport(module_name, import_command = import_command, module_url = module_url)
 
-# get secret keys
+# Get secret keys
 gpg = gnupg.GPG(homedir='~/.gnupg')
 secret_keys = gpg.list_keys(secret=True)
 gpg_secret_key_map = {}
@@ -335,7 +335,6 @@ if __name__ == "__main__":
     muttrc = os.path.join(os.path.expanduser("~"), ".muttrc")
     mutt_imap_user = None
     mutt_imap_server = None
-    mutt_gpg_email = None
     if os.path.exists(muttrc):
         with open(muttrc, 'r') as rc:
             for line in rc:
@@ -343,44 +342,39 @@ if __name__ == "__main__":
                 if m:
                     mutt_imap_user = m.group(1)
                     mutt_imap_server = m.group(2)
-                else:
-                    m = re.match(r'\s*my_hdr\s+[Ff][Rr][Oo][Mm]:.*?\b([a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+)\b', line)
-                    if m:
-                        mutt_gpg_email = m.group(1)
 
+    # Parse arguments
     argparser = argparse.ArgumentParser(description='Magiic Allows for GPG Indexing of IMAP on the Command-line.')
     argparser.add_argument('QUERY', nargs='*', help='the string(s) to query.  If none are provided, Magiic will sync its index with the E-mails in your inbox, provided it has the information necessary (user, email, server).')
     argparser.add_argument('--user', '-u', type=str,
         default=mutt_imap_user if mutt_imap_user else None,
         help="IMAP username"+("" if mutt_imap_user is None else " (default: %s)" % mutt_imap_user),
         required=False)
-    argparser.add_argument('--email', '-e', type=str,
-        default=mutt_gpg_email if mutt_gpg_email else None,
-        help="E-Mail address associated with your GPG private key, or the key ID itself"+("" if mutt_gpg_email is None else " (default: %s)" % mutt_gpg_email),
-        required=False)
+    argparser.add_argument('--gpg-id', '-g', type=str,
+        help="E-Mail address associated with your GPG private key, or the key ID itself",
+        required=True)
     argparser.add_argument('--server', '-s', type=str,
         default=mutt_imap_server if mutt_imap_server else None,
         help="IMAP server hostname"+("" if mutt_imap_server is None else " (default: %s)" % mutt_imap_server),
         required=False)
-
     argparser.add_argument('--mailbox', '-m', type=str, help="The mailbox to index and/or search from (default is INBOX)", required=False, default="INBOX")
     argparser.add_argument('--full', '-f', action='store_true', help="Perform a full import.  Without this option, the import stops when it reaches a message that it has already indexed.")
-
     args = argparser.parse_args()
 
     # Enforce the two modes of operation: either query mode or indexing mode
-    if len(args.QUERY) == 0 and (args.user is None or args.email is None or args.server is None):
+    if len(args.QUERY) == 0 and (args.user is None or args.gpg_id is None or args.server is None):
         argparser.print_help()
         sys.exit(2)
 
     # Ensure we will encrypt the index to something it is possible to decrypt
-    if args.email not in gpg_secret_key_map:
-        sys.stderr.write("[!] Unable to find private key for \"%s\", exiting.\n" % args.email)
+    if args.gpg_id not in gpg_secret_key_map:
+        sys.stderr.write("[!] Unable to find private key for \"%s\", exiting.\n" % args.gpg_id)
         sys.stderr.flush()
         exit(1)
-    gpg_user = gpg_secret_key_map[args.email]
+    gpg_user = gpg_secret_key_map[args.gpg_id]
 
     with Index(gpg_user, index_suffix=args.mailbox) as index:
+        # If in querying mode:
         if len(args.QUERY) > 0:
             results = [email for query in args.QUERY for email in index.query(query)]
             if len(results) == 0:
@@ -394,6 +388,8 @@ if __name__ == "__main__":
             except KeyboardInterrupt:
                 pass
             exit(0)
+
+        # Else, if in indexing mode:
         imap = imaplib.IMAP4_SSL(args.server)
         imap.login(args.user, getpass.getpass("IMAP Password for " + args.user + ": "))
         try:
@@ -449,3 +445,4 @@ if __name__ == "__main__":
             index.save()
             imap.close()
             imap.logout()
+
