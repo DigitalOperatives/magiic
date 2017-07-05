@@ -82,19 +82,27 @@ default_gpg_id = None
 if len(secret_keys) == 0:
     sys.stderr.write("[!] No GPG private keys could be found, exiting\n")
     exit(1)
-elif len(secret_keys) == 1:
-    default_gpg_id = str(secret_keys[0]['keyid'])
+elif len(secret_keys) == 1 and \
+ 'keyid' in secret_keys[0] and \
+ 'uids' in secret_keys[0] and \
+ len(secret_keys[0]['uids']) > 0:
+    default_gpg_id = (str(secret_keys[0]['keyid']), str(secret_keys[0]['uids'][0]))
 gpg_secret_key_map = {}
 email_part_pattern = re.compile('.*<([^>]+)>')
 for key in secret_keys:
-    keyidstr = str(key['keyid'])
-    gpg_secret_key_map[key['keyid']] = keyidstr
-    gpg_secret_key_map[key['keyid'][-8:]] = keyidstr
-    gpg_secret_key_map[key['fingerprint'][-8:]] = keyidstr
-    for uid in key['uids']:
-        gpg_secret_key_map[uid] = keyidstr
-        if email_part_pattern.match(uid):
-            gpg_secret_key_map[email_part_pattern.match(uid).group(1)] = keyidstr
+    if 'keyid' in key:
+        keyidstr = str(key['keyid'])
+        uid0str  = ""
+        if 'uids' in key and len(key['uids']) > 0:
+            uid0str = str(key['uids'][0])
+        keytuple = (keyidstr, uid0str)
+        gpg_secret_key_map[key['keyid']] = keytuple
+        gpg_secret_key_map[key['keyid'][-8:]] = keytuple
+        gpg_secret_key_map[key['fingerprint'][-8:]] = keytuple
+        for uid in key['uids']:
+            gpg_secret_key_map[uid] = keytuple
+            if email_part_pattern.match(uid):
+                gpg_secret_key_map[email_part_pattern.match(uid).group(1)] = keytuple
 
 def get_charset(message, default="ascii"):
     """Get the message charset"""
@@ -134,7 +142,8 @@ class Index:
         self.index_dir = index_dir
         self.gpg = gpg
         self.gpg_user = gpg_user
-        self._passphrase = getpass.getpass("GPG Password for " + gpg_user + ": ")
+        self._passphrase = getpass.getpass("GPG Password for " + gpg_user[0] + \
+            " (%s): " % gpg_user[1])
         if not os.path.exists(index_dir):
             os.makedirs(index_dir)
             schema = Schema(subject=TEXT(stored=True), date=DATETIME(stored=True), sender=TEXT(stored=True), idx=ID(stored=True), body=TEXT(stored=True))
@@ -153,7 +162,7 @@ class Index:
                 if not f.endswith(".enc"):
                     with open(f, 'rb') as ef:
                         unencrypted_data = ef.read()
-                        self.gpg.encrypt(unencrypted_data, self.gpg_user, output=(f+".enc"))
+                        self.gpg.encrypt(unencrypted_data, self.gpg_user[0], output=(f+".enc"))
                     os.remove(f)
             sys.stderr.write(" done\n")
         except Exception as e:
