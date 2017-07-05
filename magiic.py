@@ -39,12 +39,12 @@ import sys
 import re
 import os.path
 import getpass
-import imaplib
 import email
 from email.Iterators import typed_subpart_iterator
 import email.utils
 import argparse
 import datetime
+import glob
 
 def _tryimport(module_name, import_command = None, module_url = None):
     if import_command == None:
@@ -346,6 +346,20 @@ def show_results(stdscr):
     mon = Monitor(stdscr, results, args.QUERY)
     mon.main()
 
+def filter_mbox_files(filelist):
+    i = len(filelist)-1
+    while i >= 0:
+        if filelist[i].endswith('.msf'):
+            filelist.pop(i)
+        elif filelist[i].endswith(os.sep+'msgFilterRules.dat'):
+            filelist.pop(i)
+        else:
+            with open(filelist[i], 'rb') as f:
+                if f.read(4) != "From":
+                    filelist.pop(i)
+        i -= 1
+    return filelist
+
 if __name__ == "__main__":
     # Preprocess .muttrc if it exists
     muttrc = os.path.join(os.path.expanduser("~"), ".muttrc")
@@ -359,13 +373,29 @@ if __name__ == "__main__":
                     mutt_imap_user = m.group(1)
                     mutt_imap_server = m.group(2)
 
+    # Preprocess .thunderbird directory if it exists
+    mbox_files = None
+    tb_dir             = os.path.join(os.path.expanduser("~"), ".thunderbird")
+    tb_localmail_files = []
+    if os.path.exists(tb_dir):
+        tb_profile_dir   = glob.glob(os.path.join(tb_dir, "*.default"))
+        if len(tb_profile_dir) == 1:
+            tb_profile_dir = tb_profile_dir[0]
+            tb_localmail_dir = os.path.join(tb_profile_dir, "Mail", "Local Folders")
+            tb_localmail_files = [os.path.join(dirpath, f) for dirpath, dirnames, files in os.walk(tb_localmail_dir) for f in files]
+            mbox_files = filter_mbox_files(tb_localmail_files)
+
     # Parse arguments
     argparser = argparse.ArgumentParser(description='Magiic Allows for GPG Indexing of IMAP on the Command-line.')
-    argparser.add_argument('QUERY', nargs='*', help='the string(s) to query.  If none are provided, Magiic will sync its index with the E-mails in your inbox, provided it has the information necessary (user, email, server).')
+    # GPG argument: required if more than one private key is found
     if default_gpg_id is None:
         argparser.add_argument('--gpg-id', '-g', type=str,
             help="E-Mail address associated with your GPG private key, or the key ID itself",
             required=True)
+    # Query argument: exclusive mode of operation; cannot provide any other arguments
+    argparser.add_argument('QUERY', nargs='*',
+        help='the string(s) to query.  If none are provided, Magiic will sync its index with the E-mails in your inbox, provided it has the information necessary (user, email, server).')
+    # IMAP options
     argparser.add_argument('--user', '-u', type=str,
         default=mutt_imap_user if mutt_imap_user else None,
         help="IMAP username"+("" if mutt_imap_user is None else " (default: %s)" % mutt_imap_user),
@@ -374,14 +404,75 @@ if __name__ == "__main__":
         default=mutt_imap_server if mutt_imap_server else None,
         help="IMAP server hostname"+("" if mutt_imap_server is None else " (default: %s)" % mutt_imap_server),
         required=False)
-    argparser.add_argument('--mailbox', '-m', type=str, help="The mailbox to index and/or search from (default is INBOX)", required=False, default="INBOX")
+    argparser.add_argument('--mailbox', '-m', type=str,
+        help="The mailbox to index and/or search from (default is INBOX)",
+        required=False, default="INBOX")
+    # MBOX options
+    mbox_group = argparser.add_mutually_exclusive_group(required=False)
+    mbox_group.add_argument('--mbox-dir', '-d', type=str,
+        help="Local directory to recursively search for and index mbox files",
+        required=False)
+    mbox_group.add_argument('--thunderbird', '-t', action='store_true',
+        help="Index local user's Thunderbird default profile Local Mail directory.")
+    # Other options
     argparser.add_argument('--full', '-f', action='store_true', help="Perform a full import.  Without this option, the import stops when it reaches a message that it has already indexed.")
     args = argparser.parse_args()
 
-    # Enforce the two modes of operation: either query mode or indexing mode
-    if len(args.QUERY) == 0 and (args.user is None or args.gpg_id is None or args.server is None):
+    # Enforce the three modes of operation: either query mode, IMAP indexing mode, or MBOX indexing mode;
+    if len(args.QUERY) >= 1 and ( \
+     (args.user != mutt_imap_user if mutt_imap_user else args.user != None) or \
+     (args.server != mutt_imap_server if mutt_imap_server else args.server != None) or \
+     args.mbox_dir != None or args.thunderbird != False or args.full != False):
+        argparser.error('Conflicting query-mode and indexing-mode arguments detected')
         argparser.print_help()
         sys.exit(2)
+    elif (args.user != mutt_imap_user if mutt_imap_user else args.user != None) and \
+     (args.server is None):
+        argparser.error('IMAP user provided but no server provided')
+        argparser.print_help()
+        sys.exit(2)
+    elif (args.server != mutt_imap_server if mutt_imap_server else args.server != None) and \
+     (args.user is None):
+        argparser.error('IMAP server provided but no user provided')
+        argparser.print_help()
+        sys.exit(2)
+    elif args.thunderbird != False and args.mbox_dir != None:
+        argparser.error('Conflicting Thunderbird and mbox_dir arguments detected')
+        argparser.print_help()
+        sys.exit(2)
+    elif (args.user != mutt_imap_user if mutt_imap_user else args.user != None) and \
+     (args.thunderbird != False or args.mbox_dir != None):
+        argparser.error('Conflicting IMAP and MBOX arguments detected')
+        argparser.print_help()
+        sys.exit(2)
+    elif (args.server != mutt_imap_server if mutt_imap_server else args.server != None) and \
+     (args.thunderbird != False or args.mbox_dir != None):
+        argparser.error('Conflicting IMAP and MBOX arguments detected')
+        argparser.print_help()
+        sys.exit(2)
+    elif (args.mailbox != "INBOX" and args.mailbox != None) and \
+     (args.thunderbird != False or args.mbox_dir != None):
+        argparser.error('Conflicting IMAP and MBOX arguments detected')
+        argparser.print_help()
+        sys.exit(2)
+
+    # Detect the mode we are in
+    mode = 'QUERY'
+    if len(args.QUERY) == 0 and args.user:
+        mode = 'IMAP'
+        import imaplib
+    else:
+        mode = 'MBOX'
+        import mailbox
+        # mbox_files was already set to the Thunderbird directory;
+        # overwrite filelist if user provided the option
+        if args.mbox_dir:
+            mbox_files = [os.path.join(dirpath, f) for dirpath, dirnames, files in os.walk(args.mbox_dir) for f in files]
+            mbox_files = filter_mbox_files(mbox_files)
+        elif mbox_files is None:
+            argparser.error('Nothing to do')
+            argparser.print_help()
+            sys.exit(2)
 
     # Ensure we will encrypt the index to something it is possible to decrypt
     if default_gpg_id is not None:
@@ -410,52 +501,78 @@ if __name__ == "__main__":
             exit(0)
 
         # Else, if in indexing mode:
-        imap = imaplib.IMAP4_SSL(args.server)
-        imap.login(args.user, getpass.getpass("IMAP Password for " + args.user + ": "))
+        if mode == 'IMAP':
+            imap = imaplib.IMAP4_SSL(args.server)
+            imap.login(args.user, getpass.getpass("IMAP Password for " + args.user + ": "))
         try:
             processed = 0
-            imap.select(args.mailbox, True)
-            typ, data = imap.search(None, 'ALL')
-            emails = data[0].split()
-            if not args.full:
-                emails = list(reversed(emails))
-            total_emails = len(emails)
-            d = str(len(str(total_emails)))
-            f = "\r" + " "*200 + "\r[.] %" + d + "d/%" + d + "d %8s %s"
-            current_email = 1
-            with index.searcher() as s:
-                for i, num in enumerate(emails):
-                    typ, data = imap.fetch(num, '(BODY.PEEK[HEADER.FIELDS (Message-ID)])')
-                    msg = email.message_from_string(data[0][1])
-                    doc = index.get_by_id(msg['Message-ID'])
-                    if doc == None:
-                        sys.stderr.write(f % (current_email, total_emails, "Adding", msg['Message-ID']))
-                        sys.stderr.flush()
-                        # Fetch the whole E-Mail
-                        typ, data = imap.fetch(num, '(RFC822)')
-                        msg = email.message_from_string(data[0][1])
-                        writer = index.index.writer()
-                        if index.add(msg, writer):
-                            processed += 1
-                            writer.commit(merge = False)
-                        else:
-                            writer.cancel()
-                            sys.stderr.write("\r" + " "*200 + "\r[!] Error decrypting E-Mail:\n\t" + str(msg['Message-ID']) + "\n\tFrom: " + str(msg['From']) + "\n\tDate: " + str(msg['date']) + "\n\tSubject: " + str(msg['Subject']))
-                            sys.stderr.flush()
-                    elif not args.full:
-                        # We reached a message that we have seen before, and we aren't doing a full import, so we are done!
-                        sys.stderr.write(f % (current_email, total_emails, "[+] Finished quick import!", msg['Message-ID']))
-                        sys.stderr.flush()
-                        break
-                    else:
-                        sys.stderr.write(f % (current_email, total_emails, "Skipping", msg['Message-ID']))
-                        sys.stderr.flush()
-                    current_email += 1
 
-                    if processed % 0x100 == 0 and processed > 0:
-                        sys.stderr.write("\r" + " "*200 + "\r[+] Optimizing the index...")
-                        sys.stderr.flush()
-                        index.index.optimize()
+            # Setup the groups over which to iterate
+            if mode == 'IMAP':
+                email_groups = [args.mailbox]
+            elif mode == 'MBOX':
+                email_groups = mbox_files
+
+            # Iterate through each email group: in the case of IMAP, there is
+            # only one group, the single remote mailbox folder; in the case of
+            # MBOX, each MBOX file is a group
+            for email_group in email_groups:
+                if mode == 'IMAP':
+                    imap.select(email_group, True)
+                    typ, data = imap.search(None, 'ALL')
+                    emails = data[0].split()
+                    if not args.full:
+                        emails = list(reversed(emails))
+                elif mode == 'MBOX':
+                    m = mailbox.mbox(email_group)
+                    emails = m.items()
+
+                total_emails = len(emails)
+                d = str(len(str(total_emails)))
+                f = "\r" + " "*200 + "\r[.] %" + d + "d/%" + d + "d %8s %s"
+                current_email = 1
+                if mode == 'IMAP':
+                    email_iteration = enumerate(emails)
+                elif mode == 'MBOX':
+                    email_iteration = emails
+                with index.searcher() as s:
+                    for i, j in email_iteration:
+                        if mode == 'IMAP':
+                            num = j
+                            typ, data = imap.fetch(num, '(BODY.PEEK[HEADER.FIELDS (Message-ID)])')
+                            msg = email.message_from_string(data[0][1])
+                        elif mode == 'MBOX':
+                            msg = j
+                        doc = index.get_by_id(msg['Message-ID'])
+                        if doc == None:
+                            sys.stderr.write(f % (current_email, total_emails, "Adding", msg['Message-ID']))
+                            sys.stderr.flush()
+                            if mode == 'IMAP':
+                                # Fetch the whole E-Mail
+                                typ, data = imap.fetch(num, '(RFC822)')
+                                msg = email.message_from_string(data[0][1])
+                            writer = index.index.writer()
+                            if index.add(msg, writer):
+                                processed += 1
+                                writer.commit(merge = False)
+                            else:
+                                writer.cancel()
+                                sys.stderr.write("\r" + " "*200 + "\r[!] Error decrypting E-Mail:\n\t" + str(msg['Message-ID']) + "\n\tFrom: " + str(msg['From']) + "\n\tDate: " + str(msg['date']) + "\n\tSubject: " + str(msg['Subject']))
+                                sys.stderr.flush()
+                        elif not args.full:
+                            # We reached a message that we have seen before, and we aren't doing a full import, so we are done!
+                            sys.stderr.write(f % (current_email, total_emails, "Finished quick import!", msg['Message-ID']))
+                            sys.stderr.flush()
+                            break
+                        else:
+                            sys.stderr.write(f % (current_email, total_emails, "Skipping", msg['Message-ID']))
+                            sys.stderr.flush()
+                        current_email += 1
+
+                        if processed % 0x100 == 0 and processed > 0:
+                            sys.stderr.write("\r" + " "*200 + "\r[+] Optimizing the index...")
+                            sys.stderr.flush()
+                            index.index.optimize()
         except KeyboardInterrupt:
             pass
         except Exception as e:
@@ -463,6 +580,7 @@ if __name__ == "__main__":
             sys.stdout.flush()
         finally:
             index.save()
-            imap.close()
-            imap.logout()
+            if mode == 'IMAP':
+                imap.close()
+                imap.logout()
 
