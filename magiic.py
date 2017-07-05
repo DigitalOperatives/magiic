@@ -79,7 +79,10 @@ for module_name, vals in _imports.iteritems():
 gpg = gnupg.GPG(homedir='~/.gnupg')
 secret_keys = gpg.list_keys(secret=True)
 default_gpg_id = None
-if len(secret_keys) == 1:
+if len(secret_keys) == 0:
+    sys.stderr.write("[!] No GPG private keys could be found, exiting\n")
+    exit(1)
+elif len(secret_keys) == 1:
     default_gpg_id = str(secret_keys[0]['keyid'])
 gpg_secret_key_map = {}
 email_part_pattern = re.compile('.*<([^>]+)>')
