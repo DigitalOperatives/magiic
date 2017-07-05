@@ -78,6 +78,9 @@ for module_name, vals in _imports.iteritems():
 # Get secret keys
 gpg = gnupg.GPG(homedir='~/.gnupg')
 secret_keys = gpg.list_keys(secret=True)
+default_gpg_id = None
+if len(secret_keys) == 1:
+    default_gpg_id = str(secret_keys[0]['keyid'])
 gpg_secret_key_map = {}
 email_part_pattern = re.compile('.*<([^>]+)>')
 for key in secret_keys:
@@ -350,9 +353,10 @@ if __name__ == "__main__":
         default=mutt_imap_user if mutt_imap_user else None,
         help="IMAP username"+("" if mutt_imap_user is None else " (default: %s)" % mutt_imap_user),
         required=False)
-    argparser.add_argument('--gpg-id', '-g', type=str,
-        help="E-Mail address associated with your GPG private key, or the key ID itself",
-        required=True)
+    if default_gpg_id is None:
+        argparser.add_argument('--gpg-id', '-g', type=str,
+            help="E-Mail address associated with your GPG private key, or the key ID itself",
+            required=True)
     argparser.add_argument('--server', '-s', type=str,
         default=mutt_imap_server if mutt_imap_server else None,
         help="IMAP server hostname"+("" if mutt_imap_server is None else " (default: %s)" % mutt_imap_server),
@@ -367,11 +371,14 @@ if __name__ == "__main__":
         sys.exit(2)
 
     # Ensure we will encrypt the index to something it is possible to decrypt
-    if args.gpg_id not in gpg_secret_key_map:
-        sys.stderr.write("[!] Unable to find private key for \"%s\", exiting.\n" % args.gpg_id)
-        sys.stderr.flush()
-        exit(1)
-    gpg_user = gpg_secret_key_map[args.gpg_id]
+    if default_gpg_id is not None:
+        gpg_user = default_gpg_id
+    else:
+        if args.gpg_id not in gpg_secret_key_map:
+            sys.stderr.write("[!] Unable to find private key for \"%s\", exiting.\n" % args.gpg_id)
+            sys.stderr.flush()
+            exit(1)
+        gpg_user = gpg_secret_key_map[args.gpg_id]
 
     with Index(gpg_user, index_suffix=args.mailbox) as index:
         # If in querying mode:
