@@ -111,6 +111,7 @@ def get_body(message):
     if message.is_multipart():
         text_parts = [part for part in typed_subpart_iterator(message, 'text', 'plain')]
         text_parts += [part for part in typed_subpart_iterator(message, 'application', 'pgp-encrypted')]
+        text_parts += [part for part in typed_subpart_iterator(message, 'application', 'octet-stream')]
         body = []
         for part in text_parts:
             charset = get_charset(part, get_charset(message))
@@ -352,14 +353,14 @@ if __name__ == "__main__":
     # Parse arguments
     argparser = argparse.ArgumentParser(description='Magiic Allows for GPG Indexing of IMAP on the Command-line.')
     argparser.add_argument('QUERY', nargs='*', help='the string(s) to query.  If none are provided, Magiic will sync its index with the E-mails in your inbox, provided it has the information necessary (user, email, server).')
-    argparser.add_argument('--user', '-u', type=str,
-        default=mutt_imap_user if mutt_imap_user else None,
-        help="IMAP username"+("" if mutt_imap_user is None else " (default: %s)" % mutt_imap_user),
-        required=False)
     if default_gpg_id is None:
         argparser.add_argument('--gpg-id', '-g', type=str,
             help="E-Mail address associated with your GPG private key, or the key ID itself",
             required=True)
+    argparser.add_argument('--user', '-u', type=str,
+        default=mutt_imap_user if mutt_imap_user else None,
+        help="IMAP username"+("" if mutt_imap_user is None else " (default: %s)" % mutt_imap_user),
+        required=False)
     argparser.add_argument('--server', '-s', type=str,
         default=mutt_imap_server if mutt_imap_server else None,
         help="IMAP server hostname"+("" if mutt_imap_server is None else " (default: %s)" % mutt_imap_server),
