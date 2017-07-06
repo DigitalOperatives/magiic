@@ -2,10 +2,19 @@
 
 ## Magiic Allows for GPG Indexing of IMAP on the Command-line (MAGIIC)
 ##
+##     Version:	1.1
+##        Date:	2017-07-05
+##  Maintainer:	Evan Sultanik
+##     Authors:	Evan Sultanik & Joshua Dugie
+##   Copyright:	2013, Digital Operatives, LLC
+##
+##   Previous Versions:
+##
 ##     Version:	1.0
 ##        Date:	2013-07-12
 ##      Author:	Evan A. Sultanik, Ph.D.
-##   Copyright:	2013, Digital Operatives, LLC
+##
+##   Copyright:	2013-2017, Digital Operatives, LLC
 ##
 ## This software is licensed under a version of the Creative Commons
 ## BY-NC-SA 3.0 license modified to be more applicable for software
