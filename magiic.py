@@ -44,6 +44,10 @@
 ## (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 ## SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+__version_info__ = ('1','1')
+__version__ = '.'.join(__version_info__)
+__release_date__ = (2017, 7, 5)
+
 import sys
 import re
 import os.path
@@ -425,9 +429,10 @@ if __name__ == "__main__":
         help="Index local user's Thunderbird default profile Local Mail directory.")
     # Other options
     argparser.add_argument('--full', '-f', action='store_true', help="Perform a full import.  Without this option, the import stops when it reaches a message that it has already indexed.")
+    argparser.add_argument('--version', '-v', action='version', help="Print the version information to STDERR and exit.", version='%(prog)s {version} ({date})'.format(version=__version__, date='-'.join(map(lambda d : "%02d" % d, __release_date__))))
     args = argparser.parse_args()
 
-    # Enforce the three modes of operation: either query mode, IMAP indexing mode, or MBOX indexing mode;
+    # Enforce the three modes of operation: either query mode, IMAP indexing mode, or MBOX indexing mode:
     if len(args.QUERY) >= 1 and ( \
      (args.user != mutt_imap_user if mutt_imap_user else args.user != None) or \
      (args.server != mutt_imap_server if mutt_imap_server else args.server != None) or \
