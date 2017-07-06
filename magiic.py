@@ -59,9 +59,9 @@ def _tryimport(module_name, import_command = None, module_url = None):
         exit(1)
 
 _imports = {
-    'gnupg' : {'url' : 'https://code.google.com/p/python-gnupg/'},
-    'whoosh.index' : {'url' : 'https://pypi.python.org/pypi/Whoosh/', 'cmd' : 'from whoosh.index import create_in, open_dir'},
-    'whoosh.fields' : {'url' : 'https://pypi.python.org/pypi/Whoosh/', 'cmd' : 'from whoosh.fields import *'},
+    'gnupg' :          {'url' : 'https://pypi.python.org/pypi/gnupg'},
+    'whoosh.index' :   {'url' : 'https://pypi.python.org/pypi/Whoosh/', 'cmd' : 'from whoosh.index import create_in, open_dir'},
+    'whoosh.fields' :  {'url' : 'https://pypi.python.org/pypi/Whoosh/', 'cmd' : 'from whoosh.fields import *'},
     'whoosh.qparser' : {'url' : 'https://pypi.python.org/pypi/Whoosh/', 'cmd' : 'from whoosh.qparser import QueryParser, MultifieldParser'},    
 }
 
