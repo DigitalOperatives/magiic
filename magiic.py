@@ -69,7 +69,7 @@ def _tryimport(module_name, import_command = None, module_url = None):
         if module_url != None:
             sys.stderr.write("[!] For instructions on doing so, please visit " + module_url + "\n")
         sys.stderr.write("\n")
-        exit(1)
+        sys.exit(1)
 
 _imports = {
     'gnupg' :          {'url' : 'https://pypi.python.org/pypi/gnupg'},
@@ -94,7 +94,7 @@ secret_keys = gpg.list_keys(secret=True)
 default_gpg_id = None
 if len(secret_keys) == 0:
     sys.stderr.write("[!] No GPG private keys could be found, exiting\n")
-    exit(1)
+    sys.exit(1)
 elif len(secret_keys) == 1 and \
  'keyid' in secret_keys[0] and \
  'uids' in secret_keys[0] and \
@@ -373,6 +373,11 @@ def filter_mbox_files(filelist):
         i -= 1
     return filelist
 
+def argparser_exit(argparser, msg):
+    argparser.error(msg)
+    argparser.print_help()
+    sys.exit(2)
+
 if __name__ == "__main__":
     # Preprocess .muttrc if it exists
     muttrc = os.path.join(os.path.expanduser("~"), ".muttrc")
@@ -437,38 +442,24 @@ if __name__ == "__main__":
      (args.user != mutt_imap_user if mutt_imap_user else args.user != None) or \
      (args.server != mutt_imap_server if mutt_imap_server else args.server != None) or \
      args.mbox_dir != None or args.thunderbird != False or args.full != False):
-        argparser.error('Conflicting query-mode and indexing-mode arguments detected')
-        argparser.print_help()
-        sys.exit(2)
+        argparser_exit(argparser, 'Conflicting query-mode and indexing-mode arguments detected')
     elif (args.user != mutt_imap_user if mutt_imap_user else args.user != None) and \
      (args.server is None):
-        argparser.error('IMAP user provided but no server provided')
-        argparser.print_help()
-        sys.exit(2)
+        argparser_exit(argparser, 'IMAP user provided but no server provided')
     elif (args.server != mutt_imap_server if mutt_imap_server else args.server != None) and \
      (args.user is None):
-        argparser.error('IMAP server provided but no user provided')
-        argparser.print_help()
-        sys.exit(2)
+        argparser_exit(argparser, 'IMAP server provided but no user provided')
     elif args.thunderbird != False and args.mbox_dir != None:
-        argparser.error('Conflicting Thunderbird and mbox_dir arguments detected')
-        argparser.print_help()
-        sys.exit(2)
+        argparser_exit(argparser, 'Conflicting Thunderbird and mbox_dir arguments detected')
     elif (args.user != mutt_imap_user if mutt_imap_user else args.user != None) and \
      (args.thunderbird != False or args.mbox_dir != None):
-        argparser.error('Conflicting IMAP and MBOX arguments detected')
-        argparser.print_help()
-        sys.exit(2)
+        argparser_exit(argparser, 'Conflicting IMAP and MBOX arguments detected')
     elif (args.server != mutt_imap_server if mutt_imap_server else args.server != None) and \
      (args.thunderbird != False or args.mbox_dir != None):
-        argparser.error('Conflicting IMAP and MBOX arguments detected')
-        argparser.print_help()
-        sys.exit(2)
+        argparser_exit(argparser, 'Conflicting IMAP and MBOX arguments detected')
     elif (args.mailbox != "INBOX" and args.mailbox != None) and \
      (args.thunderbird != False or args.mbox_dir != None):
-        argparser.error('Conflicting IMAP and MBOX arguments detected')
-        argparser.print_help()
-        sys.exit(2)
+        argparser_exit(argparser, 'Conflicting IMAP and MBOX arguments detected')
 
     # Detect the mode we are in
     if args.user or mutt_imap_user:
@@ -486,9 +477,7 @@ if __name__ == "__main__":
             mbox_files = [os.path.join(dirpath, f) for dirpath, dirnames, files in os.walk(args.mbox_dir) for f in files]
             mbox_files = filter_mbox_files(mbox_files)
         elif mbox_files is None:
-            argparser.error('Nothing to do')
-            argparser.print_help()
-            sys.exit(2)
+            argparser_exit(argparser, 'Nothing to do')
 
     # Ensure we will encrypt the index to something it is possible to decrypt
     if default_gpg_id is not None:
@@ -497,7 +486,7 @@ if __name__ == "__main__":
         if args.gpg_id not in gpg_secret_key_map:
             sys.stderr.write("[!] Unable to find private key for \"%s\", exiting.\n" % args.gpg_id)
             sys.stderr.flush()
-            exit(1)
+            sys.exit(1)
         gpg_user = gpg_secret_key_map[args.gpg_id]
 
     with Index(gpg_user, index_suffix=args.mailbox) as index:
@@ -507,14 +496,14 @@ if __name__ == "__main__":
             if len(results) == 0:
                 sys.stderr.write("[!] No results.\n")
                 sys.stderr.flush()
-                exit(0)
+                sys.exit(0)
             import curses
             import curses.ascii
             try:
                 curses.wrapper(show_results)
             except KeyboardInterrupt:
                 pass
-            exit(0)
+            sys.exit(0)
 
         # Else, if in indexing mode:
         if mode == 'IMAP':
