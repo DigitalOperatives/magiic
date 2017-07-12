@@ -471,10 +471,12 @@ if __name__ == "__main__":
         sys.exit(2)
 
     # Detect the mode we are in
-    mode = 'QUERY'
-    if len(args.QUERY) == 0 and args.user:
-        mode = 'IMAP'
-        import imaplib
+    if args.user or mutt_imap_user:
+        if args.QUERY:
+            mode = 'QUERY'
+        else:     
+            mode = 'IMAP'
+            import imaplib
     else:
         mode = 'MBOX'
         import mailbox
